@@ -1,1 +1,4 @@
-com.emar.recsearch.productlabeling
+no.jetpie.ml.feature
+no.jetpie.ml.model.nb
+no.jetpie.ml.nb
+no.jetpie.ml.utils
