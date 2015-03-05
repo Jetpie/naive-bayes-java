@@ -10,7 +10,7 @@ public class Test {
 		HashMap<Integer,Boolean> states = new HashMap<Integer,Boolean>();
 		states.put(1, true);
 		states.put(2, false);
-		if(states.get(3)){
+		if(states.get(1)){
 			System.out.println("not null");
 		}
 

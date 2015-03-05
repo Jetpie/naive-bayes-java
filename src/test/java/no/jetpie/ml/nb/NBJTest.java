@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Vector;
 
+import no.jetpie.ml.feature.TfidfVectorizer;
 import no.jetpie.ml.feature.Vectorizer;
 import no.jetpie.ml.model.nb.MultinomialNB;
 import no.jetpie.ml.model.nb.NaiveBayes;
@@ -32,9 +33,9 @@ public class NBJTest {
 		
 //		Vectorizer v = new Vectorizer("vocabulary.model",true);
 //		NaiveBayes nb = new MultinomialNB(v,"proba/");
-		String boundary =  "model_15_1_22/boundary.json";
-		String model = "model_15_1_22/log_proba/";
-		String vocabulary = "model_15_1_22/vocabulary.model";
+		String boundary =  "/home/bingqingqu/TAOCP/workspace/nbj/model_15_1_22/boundary.json";
+		String model = "/home/bingqingqu/TAOCP/workspace/nbj/model_15_1_22/log_proba/";
+		String vocabulary = "/home/bingqingqu/TAOCP/workspace/nbj/model_15_1_22/vocabulary.model";
 //		Vectorizer v = new Vectorizer(vocabulary,true){
 //			
 //			@Override
@@ -65,8 +66,10 @@ public class NBJTest {
 //				System.out.println("vocabulary model imported..");
 //			}
 //		};
-		
-		NaiveBayes nb = new MultinomialNB(vocabulary,model,boundary);
+		Vectorizer v = new TfidfVectorizer(vocabulary,true);
+		v.init();
+		NaiveBayes nb = new MultinomialNB(v,model,boundary);
+		nb.init();
 		String sen = "贝 珍珠 恒美 绽放 耳钉 - 黑色   首页  >  Mbox 饰品 专场  >  贝 珍珠 恒美 绽放 耳钉 - 黑色   唯品 会";
 		String sen1 = " Ceaco   花色 纸质 二合一 拼图   3204 - 1 （ 1000 张 ）（ 美国 直发 ）  走秀 首页  >  生活  >  家庭装饰  >  装饰画  >  Ceaco   花色 纸质 二合一 拼图   3204 - 1 （ 1000 张 ）（ 美国 直发 ）  走秀网";
 		String sen2 = "凝彩 眼线液 01 ( 黑色 )  3ml   首页  >  美妆 特卖  >  雅诗兰黛 EsteeLauder 化妆品 专场  >  凝彩 眼线液 01 ( 黑色 )  3ml   唯品 会";
@@ -83,8 +86,8 @@ public class NBJTest {
 		
 		
 		
-		nb.setRule(1, new Rule("model/rules/mogujie.txt"));
-		nb.setRule(2, new Rule("model/rules/meilishuo.txt"));
+//		nb.setRule(1, new Rule("model/rules/mogujie.txt"));
+//		nb.setRule(2, new Rule("model/rules/meilishuo.txt"));
 		int []states = {0,0,0,0,0,0,0,0};
 		ArrayList<String> result= nb.predict(example,states);
 	

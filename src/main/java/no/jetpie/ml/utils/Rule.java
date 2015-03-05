@@ -14,7 +14,7 @@ import com.google.common.io.Files;
  * make constraints on categories for specify merchants/brands or so
  * 
  * @author bingqingqu
- * @version 0.1.1
+ * @version 0.1.2
  * @date 2015.1.21
  *
  */
@@ -28,8 +28,8 @@ public class Rule {
 	
 	/**
 	 * 
-	 * @param path
-	 * 				path to the rule file
+	 * @param filepath
+	 * 		path to the rule file
 	 */
 	public void loadRule(String filepath){
 		// initialization

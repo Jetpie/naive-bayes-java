@@ -15,13 +15,14 @@ import com.google.common.io.Files;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
+import no.jetpie.ml.feature.TfidfVectorizer;
 import no.jetpie.ml.feature.Vectorizer;
 import no.jetpie.ml.utils.Rule;
 /**
  * Base class for Naive Bayes Models
  * 
  * @author bingqingqu
- * @version 0.1.1
+ * @version 0.1.2
  * @date 2015.1.22
  *
  */
@@ -43,54 +44,66 @@ public abstract class NaiveBayes {
 	/** Vectorizer instance */
 	protected Vectorizer vectorizer;
 	/** threshold for each category */
-	protected HashMap<String, Double> boundary = new HashMap<String, Double>();
+	protected HashMap<String, Double> threshold = new HashMap<String, Double>();
 	/** stop list for prediction */
 	protected HashMap<String,Boolean> used = new HashMap<String,Boolean>();
 	/** rules for state */
 	protected HashMap<Integer,Rule> rules = new HashMap<Integer,Rule>();
 	/** set of unique state */
 	protected Set<Integer> statePool = new HashSet<Integer>();
+	/** directory path log conditional probability parameters */
+	private String dirPath;
+	/** file path to thresholds */
+	private String thresholdPath;
+	
+
+	
 	
 	/**
 	 * @param v
-	 * 			A Vectorizer instance
+	 * 		A Vectorizer instance
 	 * @param dirpath
-	 * 			path to conditional probability directory
+	 * 		path to conditional probability directory
 	 * @param boundary
-	 * 			boundary json file
+	 * 		boundary json file
 	 */
-	public NaiveBayes(Vectorizer v, String dirpath, String boundary) {
+	public NaiveBayes(Vectorizer v, String dirPath, String thresholdPath) {
 		this.vectorizer = v;
 		Preconditions.checkNotNull(this.vectorizer.getNumVocab(),
 				"vocabulary model has no vocabulary!", this.vectorizer);
 		this.numFeatures = this.vectorizer.getNumVocab();
-		this.loadCondProba(dirpath);
-		try {
-			this.loadJsonFile(boundary);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		// uniform prior
-		this.logPrior = 0 - Math.log((double) this.numCats);
+		// path to model files
+		this.dirPath = dirPath;
+		this.thresholdPath = thresholdPath;
 	}
 
 	/**
 	 * @param vocabpath
-	 * 			path to vocabulary model
+	 * 		path to vocabulary model
 	 * @param dirpath
-	 * 			path to conditional probability directory
+	 * 		path to conditional probability directory
 	 * @param boundary
-	 * 			boundary json file
+	 * 		boundary json file
 	 */
-	public NaiveBayes(String vocabpath, String dirpath, String boundary) {
-		this.vectorizer = new Vectorizer(vocabpath, true);
+	public NaiveBayes(String vocabPath, String dirPath, String thresholdPath) {
+		this.vectorizer = new TfidfVectorizer(vocabPath, true);
+		this.vectorizer.init();
 		Preconditions.checkNotNull(this.vectorizer.getNumVocab(),
 				"vocabulary model has no vocabulary!", this.vectorizer);
 		this.numFeatures = this.vectorizer.getNumVocab();
-		this.loadCondProba(dirpath);
+		// path to model files
+		this.dirPath = dirPath;
+		this.thresholdPath = thresholdPath;
+
+	}
+	
+	/**
+	 * initialize the parameters
+	 */
+	public void init(){
+		this.loadCondProba(this.dirPath);
 		try {
-			this.loadJsonFile(boundary);
+			this.loadJsonFile(this.thresholdPath);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -103,99 +116,17 @@ public abstract class NaiveBayes {
 	 * Read the conditional probabilities trained model
 	 * 
 	 * @param dirpath
-	 *            path to the model DIRECTORY
+	 * 		path to the model DIRECTORY
 	 */
-	protected void loadCondProba(String dirpath){
-		long startTime = System.currentTimeMillis();
-		// main body
-		File rootDir = new File(dirpath);
-		Preconditions.checkState(rootDir.isDirectory(),
-				"Path is not a directory!", rootDir);
-
-		// current just check extension with ".txt"
-		File [] files = rootDir.listFiles(new FilenameFilter() {
-			public boolean accept(File dir, String name) {
-				if (name.lastIndexOf('.') > 0) {
-					// get last index for '.' char
-					int lastIndex = name.lastIndexOf('.');
-					// get extension
-					String ext = name.substring(lastIndex);
-					// match path name extension
-					if (ext.equals(".txt")) {
-						return true;
-					}
-				}
-				return false;
-			}
-		});
-		this.numCats = files.length;
-		
-		// sort the category in descending order
-		Collections.sort(Arrays.asList(files));
-		double[][] values = new double[this.numCats][this.numFeatures];
-		int ptr = 0;
-		for (File file : files) {
-			if (file.isFile()) {
-				// guava read lines
-				try {
-					String[] names = file.getName().split("\\.");
-					this.category.put(ptr, names[0]);
-
-					List<String> lines = Files.readLines(file, Charsets.UTF_8);
-					for (String line : lines) {
-						String[] parts = line.split(":");
-						values[ptr][this.vectorizer.getPosInCol(parts[0])] = Double
-								.parseDouble(parts[1]);
-					}
-					ptr++;
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-		this.TfeatureCondProb = new DenseMatrix(this.numFeatures, this.numCats);
-		new DenseMatrix(values).transpose(this.TfeatureCondProb);
-		System.out.print("conditional probabilities parameters loaded..");
-		System.out.println("(Elasped time: " + 
-		(System.currentTimeMillis()-startTime)/1000 + "s)");
-	}
+	protected abstract void loadCondProba(String dirPath);
 
 	/**
 	 * 
 	 * @param jsonfile
-	 * 			json file contains: 1. threshold and 2. stop flag
+	 * 		json file contains: 1. threshold and 2. stop flag
 	 * @throws IOException 
 	 */
-	protected void loadJsonFile(String jsonfile) throws IOException{
-		
-		long startTime = System.currentTimeMillis();
-		JsonReader jsonReader = new JsonReader(new FileReader(jsonfile));
-		jsonReader.beginObject();
-		// no safty here
-		String key = null;
-		while(jsonReader.hasNext()){
-			switch(jsonReader.peek()){
-			case NAME:
-				key = jsonReader.nextName();
-			case BEGIN_OBJECT:
-				jsonReader.beginObject();
-				jsonReader.nextName();
-				this.boundary.put(key,jsonReader.nextDouble());
-				jsonReader.nextName();
-				this.used.put(key,jsonReader.nextInt()!=0);
-			case END_OBJECT:
-				jsonReader.endObject();
-			default:
-				break;	
-			}
-		}
-		jsonReader.endObject();
-		jsonReader.close();
-		
-		System.out.print("threshold and stop list loaded..");
-		System.out.println("(Elasped time: " + 
-		(System.currentTimeMillis()-startTime) + "ms)");
-	}
+	protected abstract void loadJsonFile(String jsonfile) throws IOException;
 	
 	
 	/**
@@ -203,18 +134,18 @@ public abstract class NaiveBayes {
 	 * input matrix
 	 * 
 	 * @param X
-	 * 			Input document-feature matrix
+	 * 		Input document-feature matrix
 	 * @return
-	 * 			LOG joint likelihood document-category matrix
+	 * 		LOG joint likelihood document-category matrix
 	 */
 	abstract protected Matrix jointLogLikelihood(Matrix X);
 
 	/**
 	 * 
 	 * @param documents
-	 * 			List of documents of tokens separated by whitespace
+	 * 		List of documents of tokens separated by whitespace
 	 * @return
-	 * 			List of category predictions
+	 * 		List of category predictions
 	 */
 	public ArrayList<String> predict(List<String> documents,int [] states) {
 		// pre-check
@@ -232,7 +163,7 @@ public abstract class NaiveBayes {
 		for (int i = 0; i < predictions.length; i++) {
 			String predCate = this.category.get(predictions[i]);
 			if( predictions[i] > -1
-					&& jil.get(i, predictions[i]) > this.boundary.get(predCate)
+					&& jil.get(i, predictions[i]) > this.threshold.get(predCate)
 					&& this.used.get(predCate))
 				labels.add(predCate);
 			else
@@ -244,7 +175,7 @@ public abstract class NaiveBayes {
 	/**
 	 * 
 	 * @param document
-	 * 			Single document of tokens separated by whitespace
+	 * 		Single document of tokens separated by whitespace
 	 * @return predicted category
 	 * 
 	 */
@@ -265,7 +196,7 @@ public abstract class NaiveBayes {
 		String predCate = this.category.get(predictions[0]);
 
 		if( predictions[0] > -1
-				&& jil.get(0, predictions[0]) > this.boundary.get(predCate)
+				&& jil.get(0, predictions[0]) > this.threshold.get(predCate)
 				&& this.used.get(predCate))
 			return predCate;
 		else
@@ -275,9 +206,9 @@ public abstract class NaiveBayes {
 	/**
 	 * 
 	 * @param documents
-	 * 			documents of terms separated by white space
+	 * 		documents of terms separated by white space
 	 * @return LOG joint likelihood for each document-category 
-	 * pair 	 
+	 * 	       pair 	 
 	 */
 	public Matrix predictLogProba(ArrayList<String> documents) {
 		Matrix X = this.vectorizer.transform(documents);
@@ -289,9 +220,9 @@ public abstract class NaiveBayes {
 	/**
 	 * 
 	 * @param document
-	 * 			Single document of terms separated by whitespace
+	 * 		Single document of terms separated by whitespace
 	 * @return
-	 * 			LOG joint likelihood vector
+	 * 		LOG joint likelihood vector
 	 */
 	public Matrix predictLogProba(String document) {
 
@@ -305,7 +236,8 @@ public abstract class NaiveBayes {
 
 	/**
 	 * 
-	 * @param documents of terms separated by whitespace
+	 * @param documents
+	 * 		documents of terms separated by whitespace
 	 * @return joint likelihood of documents
 	 */
 	public Matrix predictProba(ArrayList<String> documents){
@@ -318,7 +250,8 @@ public abstract class NaiveBayes {
 	
 	/**
 	 * 
-	 * @param document of terms separated by whitespace
+	 * @param document
+	 * 		document of terms separated by whitespace
 	 * @return joint likelihood of documents
 	 */
 	public Matrix predictProba(String document){
@@ -333,11 +266,10 @@ public abstract class NaiveBayes {
 	/**
 	 * 
 	 * @param jil
-	 *            nDocs * nCats Matrix of predictions for each doc and cat pairs
+	 * 		nDocs * nCats Matrix of predictions for each doc and cat pairs
 	 * @return size = nDocs integer array for predictions
 	 */
 	private int[] argmax(Matrix jil,int [] states) {
-		long startTime = System.nanoTime();
 		int[] predictions = new int[jil.numRows()];
 		
 		for (int i = 0; i < jil.numRows(); i++) {
@@ -376,9 +308,6 @@ public abstract class NaiveBayes {
 				
 			}
 		}
-		
-		System.out.println("argmax took " + (System.nanoTime() - startTime) + " ms");
-		
 		return predictions;
 	}
 
@@ -387,7 +316,7 @@ public abstract class NaiveBayes {
 	 * Normalize the Matrix by row log(sum(exp(X)))
 	 * 
 	 * @param jil
-	 *            joint likelihood matrix for each category
+	 * 		joint likelihood matrix for each category
 	 */
 	private void rowLogNormalize(Matrix jil) {
 		// get max values for each row
@@ -419,10 +348,10 @@ public abstract class NaiveBayes {
 	
 	/**
 	 * add a rule(filter) to current algorithm
-	 * @param 
-	 * 		state an indicator for rule
-	 * @param 
-	 * 		r rule instance
+	 * @param state
+	 * 		an indicator for rule
+	 * @param r
+	 * 		rule instance
 	 */
 	public void setRule(int state, Rule r){
 		// check if the state is already exist
