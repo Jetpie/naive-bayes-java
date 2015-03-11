@@ -151,9 +151,18 @@ public abstract class Vectorizer {
 		int MAX_N = this.N_GRAM[1];
 		Preconditions.checkState(MIN_N <= MAX_N,
 				"n-gram settings wrong! min < max");
+		// add a single letter stop condition currently
+		Predicate<String> noSingleLetter = new Predicate<String>(){
+			public boolean apply(String input) {
+				return input.length()>1;
+			}
+			
+		};
 		// split using guava
-		String[] terms = Iterables.toArray(g_splitter.trimResults()
-				.omitEmptyStrings().split(document), String.class);
+		// convert UpperCase to LowerCase if any
+		String[] terms = Iterables.toArray(
+				Iterables.filter(g_splitter.trimResults().omitEmptyStrings()
+						.split(document.toLowerCase()), noSingleLetter), String.class);
 		// terminate if 1-gram is needed
 		if (MAX_N == 1)
 			return new LinkedList<String>(Arrays.asList(terms));
